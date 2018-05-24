@@ -1,0 +1,2 @@
+# slab
+基于tair的mdb_instance扣取的slab内存分配器
