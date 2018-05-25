@@ -8,7 +8,7 @@
 namespace memMgr{
 	class simpleMempool {
 		public:
-			simpleMempool(): inited(false), pagemgr(NULL), slabmgr(NULL) {};
+			simpleMempool(): inited(false), pagemgr(0), slabmgr(0) {};
 			~simpleMempool();
 
 			simpleMempool(simpleMempool&) = delete;
@@ -20,6 +20,10 @@ namespace memMgr{
 		 			unsigned int high, unsigned int low=0, int maxSize=-1);
 			void * alloc(int size);
 			bool  free(void *);
+
+			/**
+			 * 重置simpleMempool到构造完成时的状态，释放占用资源
+			 */
 			bool  reset();
 
 			#if DEBUG
@@ -34,7 +38,7 @@ namespace memMgr{
 
 	class staticMempool {
 		public:
-			staticMempool(): inited(false), pagemgr(NULL), slabmgr(NULL) {};
+			staticMempool(): inited(false), pagemgr(0), slabmgr(0) {};
 			~staticMempool();
 
 			staticMempool(staticMempool&) = delete;
@@ -46,6 +50,10 @@ namespace memMgr{
 				unsigned int baseSize, float factor);
 			void * alloc(int size);
 			bool   free(void *);
+
+			/**
+			 * 重置staticMempool到构造完成时的状态，释放占用资源
+			 */
 			bool  reset();
 
 			#if DEBUG

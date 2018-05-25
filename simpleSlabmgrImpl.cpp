@@ -1,4 +1,5 @@
 #include "simpleSlabmgrImpl.hpp"
+#include "util.hpp"
 
 namespace memMgr {
     simpleSlabmgrImpl::simpleSlabmgrImpl(basePagemgrInterface* pagemgr, 
@@ -11,21 +12,21 @@ namespace memMgr {
         }
     	this->pagemgr   		= pagemgr;
     	this->factor    		= factor;	//不小于1.1
-    	maxSlabId 	    = maxSlabNum;
-    	inited 		    = false;
+    	maxSlabId 	            = maxSlabNum;
+    	inited 		            = false;
 
     	if (unlikely(this->factor-1.1 <= 0.0)) {
-    		printf("Warning:@simpleSlabmgrImpl factor too small,use default 1.1\n");
+    		log_warning("Warning:@simpleSlabmgrImpl factor too small,use default 1.1\n");
     		this->factor = 1.1;
     	}
 
     	if (unlikely(this->baseSize == 0)) {
-    		printf("Warning:@simpleSlabmgrImpl baseSize is zero,use default 2\n");
+    		log_warning("Warning:@simpleSlabmgrImpl baseSize is zero,use default 2\n");
     		this->baseSize = 2;
     	}
 
     	if (unlikely(maxSlabId == 0)) {
-    		printf("Warning:@simpleSlabmgrImpl maxSlabId is zero,use default 1\n");
+    		log_warning("Warning:@simpleSlabmgrImpl maxSlabId is zero,use default 1\n");
     		maxSlabId = 1;
     	} else if(unlikely(maxSlabId < 0)) {
             //max_slab_id类型的最大非负数
@@ -38,20 +39,11 @@ namespace memMgr {
      */
     bool simpleSlabmgrImpl::reset()
     {
-    	it_slabmgr it = slabManagers.begin();
-    	for (; it != slabManagers.end(); ++it) {
+        it_slabmgr it = slabManagers.begin();
+        for (; it != slabManagers.end(); ++it) {
             
             (*it)->reset();
-    		delete(*it);
-    	}
-
-        maxSlabId   = 0;
-        baseSize    = 0;
-        factor      = 0.0;
-        pagemgr     = NULL;
-        inited      = false;
-        slabSizes.clear();
-        slabManagers.clear();
+        }
         return true;
     }
 
@@ -62,7 +54,7 @@ namespace memMgr {
             //析构时不需要释放slab中的page,以达到轻量级管理
             //page释放通过pagemgr做整体释放@ 这个是本类的目标功能
             //若希望清空所有 slab的page，则使用reset
-            //reset后，再使用本类，需要重新initialize
+            //reset后，当前实例还原至初始状态
             delete(*it);
         }
     }
@@ -83,11 +75,11 @@ namespace memMgr {
 
             slab *s = slabFactory::createSlab(pagemgr, i, start, pageSize/start);
             if (unlikely(!s)) {
-            	printf("Error:@simpleSlabmgrImpl out of memory!\n");
+            	log_error("Error:@simpleSlabmgrImpl out of memory!\n");
             	return false;
             }
             
-            printf("@simpleSlabmgrImpl slab: id:%d,size:%d,slabNumPerPage:%d,max_slab_id:%d\n", i, start,
+            log_debug("Debug:simpleSlabmgrImpl slab: id:%d,size:%d,slabNumPerPage:%d,max_slab_id:%d\n", i, start,
                       s->getSlabNumPerPage(), maxSlabId);
 
             slabManagers.push_back(s);
@@ -115,7 +107,7 @@ namespace memMgr {
             return slabManagers[slabId];
         }
 
-        printf("Debug:@simpleSlabmgrImpl slab size %d out of range %d\n", 
+        log_debug("Debug:@simpleSlabmgrImpl slab size %d out of range %d\n", 
             size, slabSizes[slabSizes.size()-1]);
         return NULL;
     }
@@ -128,7 +120,7 @@ namespace memMgr {
     	slab *s = getSlab(itemSize);
         if (!s) return NULL;
         
-        printf("size:%d,itemSize:%d,slabid：%d,slabsize:%d\n", size, itemSize, s->getSlabId(), s->getSlabSize());
+        log_debug("Debug: allocItem@ size:%d,itemSize:%d,slabid：%d,slabsize:%d\n", size, itemSize, s->getSlabId(), s->getSlabSize());
         return s->allocItem();
     }
 
@@ -147,7 +139,7 @@ namespace memMgr {
         if (unlikely(si->slabId >= slabManagers.size() ||
         	si->slabId < 0)) {
             //此处，可以做未初始化的校验，故开始处无须校验inited
-        	printf("Error:item %p unknown slab %d\n", si, si->slabId);
+        	log_warning("Warning:freeItem %p unknown slab %d\n", si, si->slabId);
         	return false;
         }
         
@@ -161,8 +153,8 @@ namespace memMgr {
     {
     	slab *s = new slab();
         if (unlikely(!s)) {
-        	printf("Error:out of memory!\n");
-            	return NULL;
+        	log_error("Error:out of memory!\n");
+            return NULL;
         }
 
         s->setPagemgr(pagemgr);
@@ -181,10 +173,6 @@ namespace memMgr {
             pagemgr->freePage(reinterpret_cast<char *>(*it));
         }
 
-        pagemgr        = NULL;
-        slabId         = 0;
-        slabSize       = 0;
-        slabNumPerPage = 0;
         usedPageSet.clear();
         usedItemSet.clear();
         freeItemSet.clear();
@@ -213,7 +201,7 @@ namespace memMgr {
             //无空闲资源，则申请新页
             char * newPage = pagemgr->allocPage();
             if (!newPage) {
-                printf("out of memory\n");
+                log_error("Error: out of memory\n");
                 break;
             }
             usedPageSet.insert(reinterpret_cast<long>(newPage));
@@ -228,8 +216,7 @@ namespace memMgr {
         page += sizeof(pageInfo);
         slab::slabItem *item = reinterpret_cast<slab::slabItem *>(page);
         for (int i = 0; i < slabNumPerPage; ++i) {
-            printf("Debug: free item %p belong to page %p\n", item, page-sizeof(pageInfo));
-            //printf("Debug: free item %p\n", item);
+            //log_debug("Debug: free item %p belong to page %p\n", item, page-sizeof(pageInfo));
             freeItemSet.erase(reinterpret_cast<long>(item));
             item = reinterpret_cast<slab::slabItem *>((char *) item + slabSize);
         }
@@ -248,7 +235,7 @@ namespace memMgr {
             pageInfo * p = reinterpret_cast<pageInfo*>(item->pageId);
             if (++(p->freeNr) == slabNumPerPage) {
                 //整页全部被释放
-                printf("Debug: reclaim page %p %ld\n", p, item->pageId);
+                log_debug("Debug: reclaim page %p %ld\n", p, item->pageId);
                 
                 usedPageSet.erase(item->pageId);
                 clearFreeItem4Page(reinterpret_cast<char*>(item->pageId));
@@ -259,12 +246,12 @@ namespace memMgr {
 
         //多次释放
         if (freeItemSet.find(key) != freeItemSet.end()) {
-            printf("Error: Double free %p\n", buf);
+            log_warning("Warning: Double free %p\n", buf);
             return false;
         }
 
         //释放空间不存在
-        printf("Error: unknown item %p for free\n", buf);
+        log_warning("Warning: unknown item %p for free\n", buf);
         return false;
     }
 
@@ -300,32 +287,32 @@ namespace memMgr {
 
     void simpleSlabmgrImpl::slab::showStat()
     {
-        printf("Debug(slabStat): slabId:%d slabSize:%d slabNumPerPage:%d\n", 
+        log_debug("Debug(slabStat): slabId:%d slabSize:%d slabNumPerPage:%d\n", 
             slabId, slabSize, slabNumPerPage);
-        printf("\tused_pages:%d,usedItemSet:%d,freeItemSet:%d\n", 
+        log_debug("\tused_pages:%d,usedItemSet:%d,freeItemSet:%d\n", 
             usedPageSet.size(), usedItemSet.size(), freeItemSet.size());
 
         int index = 0;
         it_setl it = usedPageSet.begin();
         for (; it != usedPageSet.end(); ++it,++index) {
             pageInfo * page = reinterpret_cast<pageInfo *>(*it);
-            printf("\tDebug: %d usedPage pageAddr:%p freeNr:%d\n", index, page, page->freeNr);
+            log_debug("\tDebug: %d usedPage pageAddr:%p freeNr:%d\n", index, page, page->freeNr);
         }
 
         it = usedItemSet.begin();
         for (index = 0; it != usedItemSet.end(); ++it,++index) {
             slab::slabItem * item = reinterpret_cast<slab::slabItem *>(*it);
             char * page = reinterpret_cast<char * >(item->pageId);
-            printf("\tDebug: %d usedItem pageAddr:%p itemAddr:%p slabId:%d\n", index, page, item, item->slabId);
+            log_debug("\tDebug: %d usedItem pageAddr:%p itemAddr:%p slabId:%d\n", index, page, item, item->slabId);
         }
 
 
-        it = freeItemSet.begin();
-        for (index = 0; it != freeItemSet.end(); ++it,++index) {
-            slab::slabItem * item = reinterpret_cast<slab::slabItem *>(*it);
-            char * page = reinterpret_cast<char * >(item->pageId);
-            printf("\tDebug: %d freeItem pageAddr:%p itemAddr:%p slabId:%d\n", index, page, item, item->slabId);
-        }
+        //it = freeItemSet.begin();
+        //for (index = 0; it != freeItemSet.end(); ++it,++index) {
+        //    slab::slabItem * item = reinterpret_cast<slab::slabItem *>(*it);
+        //    char * page = reinterpret_cast<char * >(item->pageId);
+        //    log_debug("\tDebug: %d freeItem pageAddr:%p itemAddr:%p slabId:%d\n", index, page, item, item->slabId);
+        //}
     }
     #endif
 };

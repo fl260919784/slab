@@ -9,7 +9,7 @@ namespace memMgr {
             virtual ~baseSlabmgrInterface() = default;
 
             #if DEBUG
-            virtual void showStat() = 0;
+            virtual void showStat() {};
             #endif
     };
 
@@ -25,7 +25,8 @@ namespace memMgr {
             virtual int shrink() = 0;
     };
 
-    //释放所有内存页
+    //重置slabmgr至初始化完成后的状态
+    //即slabmgr构造完成，但尚未分配item时的状态
     class slabmgrRestable {
         public:
             virtual bool reset() = 0;

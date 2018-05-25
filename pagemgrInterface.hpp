@@ -1,9 +1,5 @@
 #ifndef __PAGEMGR_INTERFACE_H__
 #define __PAGEMGR_INTERFACE_H__
-#include <stdio.h>
-
-#define likely(x)                   __builtin_expect(!!(x), 1)
-#define unlikely(x)                 __builtin_expect(!!(x), 0)
 
 namespace memMgr {
     class basePagemgrInterface {
@@ -14,7 +10,7 @@ namespace memMgr {
             virtual ~basePagemgrInterface() = default;
 
             #if DEBUG
-             virtual void showStat() = 0;
+             virtual void showStat() {};
             #endif
     };
 
@@ -28,16 +24,14 @@ namespace memMgr {
             virtual bool shrink() = 0;
     };
 
-    //释放所有内存页
+    //重置pagemgr到初始化后状态
+    //即pagemgr构造完成，但尚未分配page时的状态
     class pagemgrRestable {
         public:
             virtual bool reset() = 0;
     };
 
-
     //针对shrink，后续可以将当前mempage空闲页shrink到中央mempage中
-    
-
     //如何实现全局内存大小受限的pagemgr呢？？？？
 };
 #endif

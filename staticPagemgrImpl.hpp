@@ -13,7 +13,7 @@ namespace memMgr {
      */
     class staticPagemgrImpl :public basePagemgrInterface, public pagemgrRestable {
         public:
-            //ctor dtor etc..
+            //ctor dtor ...
             staticPagemgrImpl(char *pool, unsigned int pageSize, unsigned int totalSize);
             ~staticPagemgrImpl() = default;
 

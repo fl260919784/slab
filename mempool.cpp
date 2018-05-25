@@ -2,6 +2,8 @@
 #include "simpleSlabmgrImpl.hpp"
 #include "simplePagemgrImpl.hpp"
 #include "staticPagemgrImpl.hpp"
+#include "util.hpp"
+
 #include <malloc.h>
 
 
@@ -26,29 +28,33 @@ namespace memMgr {
 		} while (0);
 
 		if (!inited) {
-			printf("Error: initialize failed\n");
+			log_warning("Warning: initialize failed\n");
 			if (pagemgr) delete pagemgr;
 			if (slabmgr) delete slabmgr;
-			return false;
+
+			slabmgr = NULL;
+			pagemgr = NULL;
 		}
 		
-		return true;
+		return inited;
 	}
 
 	bool simpleMempool::reset()
 	{
 		if (!inited) return true;
 
-		delete pagemgr;
-		delete slabmgr;
-		inited = false;
-
+		dynamic_cast<slabmgrRestable*>(slabmgr)->reset();
+		dynamic_cast<pagemgrRestable*>(pagemgr)->reset();
+		
 		return true;
 	}
 
 	simpleMempool::~simpleMempool()
 	{
-		reset();
+		if (!inited) return;
+		
+		delete slabmgr;
+		delete pagemgr;//由pagemgr的析构来触发页的释放
 	}
 
 	void * simpleMempool::alloc(int size)
@@ -100,31 +106,35 @@ namespace memMgr {
 		} while (0);
 
 		if (!inited) {
-			printf("Error: initialize failed\n");
+			log_warning("Warning: initialize failed\n");
 			if (pagemgr) delete pagemgr;
 			if (slabmgr) delete slabmgr;
-			if (this->pool) delete this->pool;
-			return false;
+			if (this->pool) ::free(this->pool);
+
+			slabmgr = NULL;
+			pagemgr = NULL;
+			this->pool = NULL;
+
 		}
 
-		return true;
+		return inited;
 	}
 
 	bool staticMempool::reset()
 	{
 		if (!inited) return true;
 
-		delete pagemgr;
-		delete slabmgr;
-		::free(pool);
+		dynamic_cast<slabmgrRestable*>(slabmgr)->reset();
+		dynamic_cast<pagemgrRestable*>(pagemgr)->reset();
 
-		inited = false;
 		return true;
 	}
 
 	staticMempool::~staticMempool()
 	{
-		reset();
+		::free(this->pool);
+		delete slabmgr;
+		delete pagemgr;
 	}
 
 	void * staticMempool::alloc(int size)
